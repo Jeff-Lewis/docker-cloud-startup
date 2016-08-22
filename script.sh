@@ -3,7 +3,7 @@
 # --
 # Usage:
 #
-# ./script.sh <docker_cloud_user> <docker_cloud_api_key> <deployment_wait_period> <stack_uuid>
+# ./script.sh $DOCKERCLOUD_AUTH $DEPLOYMENT_TIMEOUT
 # --
 
 # --
@@ -42,16 +42,12 @@ function _result {
 }
 
 # --
-# START
-# --
-
-# --
 # Validate number of arguments
 # --
 
 _output "Checking arguments..."
 
-if [ "$#" -ne 4 ]; then
+if [ "$#" -ne 2 ]; then
   _error "illegal number of parameters"
   exit 1
 else
@@ -59,33 +55,11 @@ else
 fi
 
 # --
-# Set Docker Cloud env vars
+# START
 # --
 
-_output "Setting Docker Cloud environment variables..."
-
-export DOCKERCLOUD_USER=$1
-_result "DOCKERCLOUD_USER: \"$DOCKERCLOUD_USER\""
-export DOCKERCLOUD_APIKEY=$2
-_result "DOCKERCLOUD_APIKEY: \"xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx\""
-
-_ok
-
 # --
-# INPUT variables
-# --
-
-_output "Setting input variables..."
-
-DEPLOYMENT_TIMEOUT=$3
-_result "DEPLOYMENT_TIMEOUT: \"$DEPLOYMENT_TIMEOUT\""
-STACK_UUID=$4
-_result "STACK_UUID: \"$STACK_UUID\""
-
-_ok
-
-# --
-# FINAL variables
+# Version-specific variables
 # --
 
 _output "Setting final variables..."
@@ -164,6 +138,17 @@ pip install -q docker-cloud==$DOCKER_CLOUD_CLI_VERSION awscli==$AWS_CLI_VERSION
 _ok
 
 # --
+# Set Docker Cloud env vars
+# --
+
+_output "Setting Docker Cloud environment variables..."
+
+export DOCKERCLOUD_AUTH=$1
+_result "DOCKERCLOUD_AUTH: \"Basic xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\""
+
+_ok
+
+# --
 # Set AWS env vars
 # --
 
@@ -171,6 +156,18 @@ _output "Setting AWS environment variables..."
 
 export AWS_DEFAULT_REGION=$(curl -f ${METADATA_SERVICE_URI}/placement/availability-zone | sed 's/.$//')
 _result "AWS_DEFAULT_REGION: \"$AWS_DEFAULT_REGION\""
+
+_ok
+
+
+# --
+# INPUT variables
+# --
+
+_output "Setting input variables..."
+
+DEPLOYMENT_TIMEOUT=$2
+_result "DEPLOYMENT_TIMEOUT: \"$DEPLOYMENT_TIMEOUT\""
 
 _ok
 
@@ -209,6 +206,39 @@ if [ $? != 0 ]; then _error "node never came up"; exit 2; fi
 _ok
 
 # --
+# Set node tags in docker cloud based on EC2 tags (tag must include "Docker-Cloud")
+# --
+
+_output "Add docker cloud node tags..."
+
+INSTANCE_ID=$(curl -f ${METADATA_SERVICE_URI}/instance-id)
+_result "INSTANCE_ID: \"$INSTANCE_ID\""
+
+# E.g.: Docker-Cloud-NodeType=Worker
+EC2_TAGS=$(aws ec2 describe-tags --filters "Name=resource-id,Values=$INSTANCE_ID" | jq -r '.Tags | map(select(.Key | contains("Docker-Cloud"))) | .[].Key+"="+.[].Value')
+for TAG in $EC2_TAGS
+do
+  docker-cloud tag add -t $TAG $NODE_UUID
+  _result "TAG: \"$TAG\""
+done
+
+INSTANCE_IDENTITY=$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | jq -r .)
+TAG="region=$(echo -n $INSTANCE_IDENTITY | jq -r .region)"
+docker-cloud tag add -t $TAG $NODE_UUID
+_result "TAG: \"$TAG\""
+TAG="privateIp=$(echo -n $INSTANCE_IDENTITY | jq -r .privateIp)"
+docker-cloud tag add -t $TAG $NODE_UUID
+_result "TAG: \"$TAG\""
+TAG="availabilityZone=$(echo -n $INSTANCE_IDENTITY | jq -r .availabilityZone)"
+docker-cloud tag add -t $TAG $NODE_UUID
+_result "TAG: \"$TAG\""
+TAG="instanceId=$(echo -n $INSTANCE_IDENTITY | jq -r .instanceId)"
+docker-cloud tag add -t $TAG $NODE_UUID
+_result "TAG: \"$TAG\""
+
+_ok
+
+# --
 # Set node UUID as AWS tag
 # --
 
@@ -218,34 +248,6 @@ INSTANCE_ID=$(curl -f ${METADATA_SERVICE_URI}/instance-id)
 _result "INSTANCE_ID: \"$INSTANCE_ID\""
 
 aws ec2 create-tags --resources $INSTANCE_ID --tags Key="Docker-Cloud-UUID",Value=$NODE_UUID
-
-_ok
-
-# --
-# Set node tags in docker cloud based on EC2 tags (tag must include "docker-cloud")
-# --
-
-_output "Add docker cloud node tags..."
-
-INSTANCE_ID=$(curl -f ${METADATA_SERVICE_URI}/instance-id)
-_result "INSTANCE_ID: \"$INSTANCE_ID\""
-
-EC2_TAGS=$(aws ec2 describe-tags --filters "Name=resource-id,Values=$INSTANCE_ID" | jq -r '.Tags | map(select(.Key | contains("docker-cloud"))) | .[].Value')
-for TAG in $EC2_TAGS
-do
-  _result "TAG: \"$TAG\""
-  docker-cloud tag add -t $TAG $NODE_UUID
-done
-
-_ok
-
-# --
-# Cleanup instance
-# --
-
-_output "Redeploy stack..."
-
-docker-cloud stack redeploy --sync $STACK_UUID
 
 _ok
 

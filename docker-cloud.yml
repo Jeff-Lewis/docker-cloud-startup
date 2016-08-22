@@ -1,0 +1,27 @@
+docker-cloud-startup:
+  image: 'timehop/docker-cloud-startup:latest'
+  autodestroy: always
+  environment:
+    - DOCKER_USER=<your_docker_username>
+    - API_KEY=<your_docker_cloud_api_key>
+    - AWS_REGION=<aws_region>
+    # These aws keys must have create-stack privileges for Cloudformation
+    - AWS_ACCESS_KEY_ID=<*******>
+    - AWS_SECRET_ACCESS_KEY=<*******>
+    # How long cloud-init takes to wait for a BYOH node to deploy
+    - DEPLOYMENT_TIMEOUT=2m
+    # Defaulted to Ubuntu Server 14.04 LTS (HVM), SSD Volume Type - ami-2d39803a
+    - AMI_ID=ami-2d39803a
+    - INSTANCE_TYPE=t2.micro
+    - DESIRED_CAPACITY=1
+    - AVAILABILITY_ZONES=<comma_separated_aws_zones>
+    - CLOUDFORMATION_STACK_NAME=<desired_stack_name>
+    - IAM_ROLE=<custom_iam_role_name>
+    - KEYPAIR_NAME=<custom_keypair_name>
+    # This bucket is where script.sh is copied to and the user data script reads/executes it.
+    - S3_BUCKET=<write_accessible>
+    # Must have 6783/tcp, 6783/udp, and 2375/tcp open
+    - SECURITY_GROUPS=<custom_security_group>
+    - SUBNETS=<comma_separated_vpc_subnets>
+    # Optional EC2 tags to apply
+    - 'TAGS=Key=Foo,Value=Bar Key=Biz,Value=Baz'

@@ -1,0 +1,79 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Metadata": {
+  },
+  "Parameters": {
+    "ImageId": {
+      "Type": "String",
+      "Description": "EC2 AMI ID (Supported distros: https://docs.docker.com/docker-cloud/infrastructure/byoh/)",
+      "Default": "ami-2d39803a"
+    },
+    "InstanceType": {
+      "Type": "String",
+      "Description": "EC2 instance type",
+      "Default": "t2.micro"
+    },
+    "DesiredCapacity": {
+      "Type": "Number",
+      "Description": "The initial desired scale",
+      "Default": 1
+    },
+    "KeyPairName": {
+      "Type": "String",
+      "Description": "EC2 key pair name",
+    },
+    "IamInstanceProfile": {
+      "Type": "String",
+      "Description": "Launch configuration IAM Role"
+    },
+    "SecurityGroups": {
+      "Type": "CommaDelimitedList",
+      "Description": "Launch configuration security groups"
+    },
+    "AvailabilityZones": {
+      "Type": "CommaDelimitedList",
+      "Description": "Autoscaling group AZs"
+    },
+    "Subnets": {
+      "Type": "CommaDelimitedList",
+      "Description": "Autoscaling group VPC subnets"
+    },
+    "UserData": {
+      "Type": "String",
+      "Description": "User data script for cloud-init (base64-encoded)"
+    }
+  },
+  "Resources": {
+    "LaunchConfiguration": {
+      "Type": "AWS::AutoScaling::LaunchConfiguration",
+      "Properties": {
+        "AssociatePublicIpAddress": true,
+        "IamInstanceProfile": { "Ref": "IamInstanceProfile" },
+        "ImageId": { "Ref": "ImageId" },
+        "InstanceType": { "Ref": "InstanceType" },
+        "InstanceMonitoring": false,
+        "KeyName": { "Ref": "KeyPairName" },
+        "SecurityGroups": { "Ref": "SecurityGroups" },
+        "UserData": { "Ref": "UserData" }
+      },
+      "Metadata": {
+      }
+    },
+    "AutoScalingGroup": {
+      "Type": "AWS::AutoScaling::AutoScalingGroup",
+      "Properties": {
+        "AvailabilityZones": { "Ref": "AvailabilityZones" },
+        "DesiredCapacity": { "Ref": "DesiredCapacity" },
+        "LaunchConfigurationName": { "Ref": "LaunchConfiguration" },
+        "MaxSize": 100,
+        "MinSize": 0,
+        "VPCZoneIdentifier": { "Ref": "Subnets" }
+      },
+      "Metadata": {
+      },
+      "DependsOn": [
+        "LaunchConfiguration"
+      ]
+    }
+  }
+}
