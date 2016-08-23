@@ -1,63 +1,60 @@
 # Docker Cloud Startup
 
-### What
+## What
 
 This repo provides a Docker Cloud stack that spawns ["Bring Your Own Host"](https://docs.docker.com/docker-cloud/infrastructure/byoh/) nodes as EC2 instances in an AWS autoscaling group. Each EC2 instance registers itself as a Docker Cloud node with sensible default EC2 tags and Docker Cloud labels.
 
 [![Deploy to Docker Cloud](https://files.cloud.docker.com/images/deploy-to-dockercloud.svg)](https://cloud.docker.com/stack/deploy/)
 
-The "Deploy to Cloud" button above can be used to get up and running. You will need to configure it with the following details:
+The "Deploy to Cloud" button above may be used to quickly get up and running. Refer to the comments in `docker-cloud.yml` for configuration details.
 
-1. Your Docker Cloud username.
-1. A Docker Cloud API key (Managed under account [settings](https://cloud.docker.com/_/account)).
-1. AWS region to deploy nodes into.
-1. AWS credentials with privileges to create CloudFormation stacks.
-1. AWS availability zones to launch EC2 instances into.
-1. An AWS IAM role to launch EC2 instances with.
-1. An AWS security group(s) to launch EC2 instances with which exposes 6783/tcp, 6783/udp, and 2375/tcp.
-1. An AWS ssh keypair to launch EC2 instances with.
-1. An AWS vpc subnet(s) to launch EC2 instances into.
-1. A AWS S3 bucket to host the startup script.
-1. A unique name for the AWS CloudFormation stack.
-1. Any tags you may wish to launch EC2 instances with.
+When deployed, the service will upload a launch script to the configured s3 bucket. Then it creates a CloudFormation stack based on `cloud-formation-template.json`, passing in various parameters sourced from the configuration.
 
-**Note:** Currently the service _must_ be configured with VPC subnets, IAM role, security group, and ssh keypair.
-
-When deployed, this stack will upload `script.sh` with _public-read_ permissions to `s3://$S3_BUCKET/docker-cloud-startup/$CLOUDFORMATION_STACK_NAME/script.sh`. Next it creates a CloudFormation stack from `cloud-formation-template.json`, passing in various parameters sourced from the environment.
-
-When an EC2 instance launches, a user data shell script fetches and executes the script at `s3://$S3_BUCKET/docker-cloud-startup/$CLOUDFORMATION_STACK_NAME/script.sh`. This script is responsible for registering the EC2 instance as a BYOH node and setting tags and labels. 
+When an EC2 instance launches, a user data shell script fetches and executes the script at `s3://$S3_BUCKET/docker-cloud-startup/$CLOUDFORMATION_STACK_PREFIX-$UUID/script.sh`. This script is responsible for registering the EC2 instance as a BYOH node and setting tags and labels. 
 
 ### EC2 Tags and BYOH Node Labels
 
-Aside from the EC2 tags you specify in the stack definition, a `Docker-Cloud-UUID` tag will always be set. Every BYOH node will also be labeled with the following instance details: `availabilityZone`, `instanceId`, `privateIp`, and `region`.
+A `Docker-Cloud-UUID` tag will always be set on every ec2 instance if launched successfully. Every BYOH node will also be labeled with the following instance details: `availabilityZone`, `instanceId`, `instanceType`, `privateIp`, and `region`.
 
-Use the `$TAGS` env var to specify custom EC2 tags. Any tags that begin with "Docker-Cloud-" are automatically applied as labels to the corresponding BYOH node.
+Use the `TAGS` configuration to specify custom EC2 tags. Any tags that begin with "Docker-Cloud-" are automatically applied as labels to the Docker Cloud node.
 
-### Execute Not as a Docker Cloud Service
+### Create AWS Resources Manually
+
+You may also create the same autoscaling resources without deploying a Docker Cloud stack. Just execute the following.
+
+Launch in EC2 Classic:
 
 ```bash
 docker run --rm -it \
   -e DOCKER_USER=<your_docker_username> \
   -e API_KEY=<your_docker_cloud_api_key> \
-  -e AWS_REGION=<aws_region> \
-  -e AWS_ACCESS_KEY_ID=*********************** \
-  -e AWS_SECRET_ACCESS_KEY==*********************** \
-  -e AVAILABILITY_ZONES=<comma_separated_availability_zones> \
-  -e IAM_ROLE=<iam_role_name> \
-  -e SECURITY_GROUPS=<comma_separated_security_group_ids> \
-  -e KEYPAIR_NAME=<aws_keypair_name> \
-  -e SUBNETS=<comma_separated_subnet_ids> \
-  -e S3_BUCKET=<writeable_s3_bucket> \
-  -e CLOUDFORMATION_STACK_NAME=<unique_name> \
-  -e DEPLOYMENT_TIMEOUT=2m \
-  -e AMI_ID=ami-2d39803a \
-  -e INSTANCE_TYPE=t2.micro \
-  -e DESIRED_CAPACITY=1 \
-  -e TAGS="Key=Foo,Value=Bar Key=Biz,Value=Baz" \
+  -e AWS_ACCESS_KEY_ID=******************** \
+  -e AWS_SECRET_ACCESS_KEY=******************** \
+  -e S3_BUCKET=<s3_bucket> \
+  -e AWS_REGION=us-east-1 \
+  -e AVAILABILITY_ZONES=us-east-1d,us-east-1b,us-east-1c \
   timehop/docker-cloud-startup:latest
 ```
 
-### Why
+Launch in a VPC:
+
+```bash
+docker run --rm -it \
+  -e DOCKER_USER=<your_docker_username> \
+  -e API_KEY=<your_docker_cloud_api_key> \
+  -e AWS_ACCESS_KEY_ID=******************** \
+  -e AWS_SECRET_ACCESS_KEY=******************** \
+  -e S3_BUCKET=<s3_bucket> \
+  -e AWS_REGION=us-east-1 \
+  -e KEYPAIR_NAME=<keypair_name> \
+  -e VPC_ID=<vpc_id> \
+  -e SUBNETS=<csv_subnets> \
+  -e INSTANCE_TYPE=t2.micro \
+  -e TAGS='Key=Docker-Cloud-IsVPC,Value=true' \
+  timehop/docker-cloud-startup:latest
+```
+
+## Why
 
 At [Vidsy](http://vidsy.co) and [Timehop](https://timehop.com) we wanted to use Docker Cloud, but also benefit from the controls and features of AWS.
 

@@ -101,7 +101,10 @@ case "$OS_KIND" in
   debian)
     locale-gen en_GB.UTF-8
     apt-get update
-    apt-get install -y python-pip jq curl
+    apt-get install -y python-pip curl
+    # Manually install jq-1.5 for startswith and ltrimstr support
+    curl -Lo /usr/bin/jq https://github.com/stedolan/jq/releases/download/jq-1.5/jq-linux64
+    chmod ugo+x /usr/bin/jq
     ;;
   fedora)
     echo "en_GB.UTF-8" > /etc/locale.conf
@@ -214,8 +217,16 @@ _output "Add docker cloud node tags..."
 INSTANCE_ID=$(curl -f ${METADATA_SERVICE_URI}/instance-id)
 _result "INSTANCE_ID: \"$INSTANCE_ID\""
 
-# E.g.: Docker-Cloud-NodeType=Worker
-EC2_TAGS=$(aws ec2 describe-tags --filters "Name=resource-id,Values=$INSTANCE_ID" | jq -r '.Tags | map(select(.Key | contains("Docker-Cloud"))) | .[].Key+"="+.[].Value')
+# E.g.: 'Docker-Cloud-NodeType=Worker' produces 'NodeType=Worker'
+EC2_TAGS=$(aws ec2 describe-tags --filters "Name=resource-id,Values=$INSTANCE_ID" | jq -r '.Tags | map(select(.Key | startswith("Docker-Cloud-"))) | .[].Key+"="+.[].Value | ltrimstr("Docker-Cloud-")')
+for TAG in $EC2_TAGS
+do
+  docker-cloud tag add -t $TAG $NODE_UUID
+  _result "TAG: \"$TAG\""
+done
+
+# E.g.: Name=docker-cloud-startup-9ec4b02
+EC2_TAGS=$(aws ec2 describe-tags --filters "Name=resource-id,Values=$INSTANCE_ID" | jq -r '.Tags | map(select(.Key == "Name")) | .[].Key+"="+.[].Value')
 for TAG in $EC2_TAGS
 do
   docker-cloud tag add -t $TAG $NODE_UUID
@@ -223,6 +234,12 @@ do
 done
 
 INSTANCE_IDENTITY=$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | jq -r .)
+TAG="instanceId=$(echo -n $INSTANCE_IDENTITY | jq -r .instanceId)"
+docker-cloud tag add -t $TAG $NODE_UUID
+_result "TAG: \"$TAG\""
+TAG="instanceType=$(echo -n $INSTANCE_IDENTITY | jq -r .instanceType)"
+docker-cloud tag add -t $TAG $NODE_UUID
+_result "TAG: \"$TAG\""
 TAG="region=$(echo -n $INSTANCE_IDENTITY | jq -r .region)"
 docker-cloud tag add -t $TAG $NODE_UUID
 _result "TAG: \"$TAG\""
@@ -230,9 +247,6 @@ TAG="privateIp=$(echo -n $INSTANCE_IDENTITY | jq -r .privateIp)"
 docker-cloud tag add -t $TAG $NODE_UUID
 _result "TAG: \"$TAG\""
 TAG="availabilityZone=$(echo -n $INSTANCE_IDENTITY | jq -r .availabilityZone)"
-docker-cloud tag add -t $TAG $NODE_UUID
-_result "TAG: \"$TAG\""
-TAG="instanceId=$(echo -n $INSTANCE_IDENTITY | jq -r .instanceId)"
 docker-cloud tag add -t $TAG $NODE_UUID
 _result "TAG: \"$TAG\""
 
@@ -243,9 +257,6 @@ _ok
 # --
 
 _output "Add AWS tags..."
-
-INSTANCE_ID=$(curl -f ${METADATA_SERVICE_URI}/instance-id)
-_result "INSTANCE_ID: \"$INSTANCE_ID\""
 
 aws ec2 create-tags --resources $INSTANCE_ID --tags Key="Docker-Cloud-UUID",Value=$NODE_UUID
 

@@ -1,7 +1,5 @@
 {
   "AWSTemplateFormatVersion": "2010-09-09",
-  "Metadata": {
-  },
   "Parameters": {
     "ImageId": {
       "Type": "String",
@@ -10,70 +8,129 @@
     },
     "InstanceType": {
       "Type": "String",
-      "Description": "EC2 instance type",
-      "Default": "t2.micro"
+      "Description": "EC2 instance type.",
+      "Default": "m3.medium"
     },
     "DesiredCapacity": {
       "Type": "Number",
-      "Description": "The initial desired scale",
+      "Description": "The initial desired scale.",
       "Default": 1
     },
     "KeyPairName": {
       "Type": "String",
-      "Description": "EC2 key pair name",
+      "Description": "EC2 keypair name (optional)."
     },
     "IamInstanceProfile": {
       "Type": "String",
-      "Description": "Launch configuration IAM Role"
+      "Description": "IAM instance profile name (optional)."
     },
     "SecurityGroups": {
       "Type": "CommaDelimitedList",
-      "Description": "Launch configuration security groups"
+      "Description": "Security groups (optional)."
     },
     "AvailabilityZones": {
       "Type": "CommaDelimitedList",
-      "Description": "Autoscaling group AZs"
+      "Description": "Autoscaling group AZs. Only specify if Subnets is empty."
+    },
+    "VpcId": {
+      "Type": "String",
+      "Description": "Security group VPC (optional). Only required if SecurityGroups is empty and Subnets is not empty."
     },
     "Subnets": {
       "Type": "CommaDelimitedList",
-      "Description": "Autoscaling group VPC subnets"
+      "Description": "Autoscaling group VPC subnets. Only specify if AvailabilityZones is empty."
     },
     "UserData": {
       "Type": "String",
       "Description": "User data script for cloud-init (base64-encoded)"
     }
   },
+  "Conditions": {
+    "HasNoKeyPair":           {"Fn::Equals": [{"Ref": "KeyPairName"}, ""]},
+    "HasNoIamRole":           {"Fn::Equals": [{"Ref": "IamInstanceProfile"}, ""]},
+    "HasNoVPCId":             {"Fn::Equals": [{"Ref": "VpcId"}, ""]},
+    "HasNoSecurityGroups":    {"Fn::Equals": [{"Fn::Join": [",", {"Ref": "SecurityGroups"}]}, ""]},
+    "HasNoSubnets":           {"Fn::Equals": [{"Fn::Join": [",", {"Ref": "Subnets"}]}, ""]},
+    "HasNoAvailabilityZones": {"Fn::Equals": [{"Fn::Join": [",", {"Ref": "AvailabilityZones"}]}, ""]}
+  },
   "Resources": {
-    "LaunchConfiguration": {
-      "Type": "AWS::AutoScaling::LaunchConfiguration",
+    "DockerCloudIamRole": {
+      "Condition": "HasNoIamRole",
+      "Type": "AWS::IAM::Role",
       "Properties": {
-        "AssociatePublicIpAddress": true,
-        "IamInstanceProfile": { "Ref": "IamInstanceProfile" },
-        "ImageId": { "Ref": "ImageId" },
-        "InstanceType": { "Ref": "InstanceType" },
-        "InstanceMonitoring": false,
-        "KeyName": { "Ref": "KeyPairName" },
-        "SecurityGroups": { "Ref": "SecurityGroups" },
-        "UserData": { "Ref": "UserData" }
-      },
-      "Metadata": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Effect": "Allow",
+            "Principal": {"Service": ["ec2.amazonaws.com"]},
+            "Action": ["sts:AssumeRole"]
+          }]
+        },
+        "Policies": [{
+          "PolicyName": "docker-cloud-byoh",
+          "PolicyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [{      
+              "Effect": "Allow",      
+              "Action": ["ec2:DescribeTags", "ec2:CreateTags"],
+              "Resource": "*"      
+            }]
+          }
+        }]
       }
     },
-    "AutoScalingGroup": {
+    "DockerCloudIamInstanceProfile": {
+      "Condition": "HasNoIamRole",
+      "Type": "AWS::IAM::InstanceProfile",
+      "Properties": {
+        "Path": "/",
+        "Roles": [{"Ref": "DockerCloudIamRole"}]
+      }
+    },
+    "DockerCloudSecurityGroup": {
+      "Condition": "HasNoSecurityGroups",
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Docker Cloud BYOH",
+        "VpcId": {"Fn::If": ["HasNoVPCId", {"Ref": "AWS::NoValue"}, {"Ref": "VpcId"}]},
+        "SecurityGroupEgress": {
+          "Fn::If": [
+            "HasNoVPCId",
+            {"Ref": "AWS::NoValue"},
+            [{"IpProtocol": "-1", "CidrIp": "0.0.0.0/0"}]
+          ]
+        },
+        "SecurityGroupIngress": [
+          {"IpProtocol": "tcp", "FromPort": 22,   "ToPort": 22,   "CidrIp": "0.0.0.0/0"},
+          {"IpProtocol": "udp", "FromPort": 6783, "ToPort": 6783, "CidrIp": "0.0.0.0/0"},
+          {"IpProtocol": "tcp", "FromPort": 6783, "ToPort": 6783, "CidrIp": "0.0.0.0/0"},
+          {"IpProtocol": "tcp", "FromPort": 2375, "ToPort": 2375, "CidrIp": "0.0.0.0/0"}
+        ]
+      }
+    },
+    "DockerCloudLaunchConfiguration": {
+      "Type": "AWS::AutoScaling::LaunchConfiguration",
+      "Properties": {
+        "ImageId": {"Ref": "ImageId"},
+        "InstanceType": {"Ref": "InstanceType"},
+        "AssociatePublicIpAddress": {"Fn::If": ["HasNoSubnets", {"Ref": "AWS::NoValue"}, true]},
+        "KeyName": {"Fn::If": ["HasNoKeyPair", {"Ref": "AWS::NoValue"}, {"Ref": "KeyPairName"}]},
+        "InstanceMonitoring": false,
+        "UserData": {"Ref": "UserData"},
+        "IamInstanceProfile": {"Fn::If": ["HasNoIamRole", {"Ref": "DockerCloudIamInstanceProfile"}, {"Ref": "IamInstanceProfile"}]},
+        "SecurityGroups": {"Fn::If": ["HasNoSecurityGroups", [{"Ref": "DockerCloudSecurityGroup"}], {"Ref": "SecurityGroups"}]}
+      }
+    },
+    "DockerCloudAutoScalingGroup": {
       "Type": "AWS::AutoScaling::AutoScalingGroup",
       "Properties": {
-        "AvailabilityZones": { "Ref": "AvailabilityZones" },
-        "DesiredCapacity": { "Ref": "DesiredCapacity" },
-        "LaunchConfigurationName": { "Ref": "LaunchConfiguration" },
+        "DesiredCapacity": {"Ref": "DesiredCapacity"},
+        "LaunchConfigurationName": {"Ref": "DockerCloudLaunchConfiguration"},
         "MaxSize": 100,
         "MinSize": 0,
-        "VPCZoneIdentifier": { "Ref": "Subnets" }
-      },
-      "Metadata": {
-      },
-      "DependsOn": [
-        "LaunchConfiguration"
-      ]
+        "VPCZoneIdentifier": {"Fn::If": ["HasNoSubnets", {"Ref": "AWS::NoValue"}, {"Ref": "Subnets"}]},
+        "AvailabilityZones": {"Fn::If": ["HasNoAvailabilityZones", {"Ref": "AWS::NoValue"}, {"Ref": "AvailabilityZones"}]}
+      }
     }
   }
 }
