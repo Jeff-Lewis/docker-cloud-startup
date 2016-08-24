@@ -18,6 +18,57 @@ A `Docker-Cloud-UUID` tag will always be set on every ec2 instance if launched s
 
 Use the `TAGS` configuration to specify custom EC2 tags. Any tags that begin with "Docker-Cloud-" are automatically applied as labels to the Docker Cloud node.
 
+### AWS Credentials
+
+The AWS credentials you configure the service with will need to have s3 write access to the bucket you configure, as well as access for creating CloudFormation stacks. Here is a sample policy you may use. Replace `${S3_BUCKET}` with the configured bucket name:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:*",
+        "iam:CreateRole",
+        "iam:PutRolePolicy",
+        "iam:PassRole",
+        "iam:CreateInstanceProfile",
+        "iam:AddRoleToInstanceProfile",
+        "ec2:CreateSecurityGroup",
+        "autoscaling:CreateLaunchConfiguration",
+        "autoscaling:CreateAutoScalingGroup"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Deny",
+      "Action": [
+        "cloudformation:UpdateStack",
+        "cloudformation:DeleteStack"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket"],
+      "Resource": ["arn:aws:s3:::${S3_BUCKET}"]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": ["arn:aws:s3:::${S3_BUCKET}/*"]
+    }
+  ]
+}
+```
+
+_If you don't wish to allow the `iam:*` actions, then you must configure the service with a role name to use. Ditto for security groups._
+
 ### Create AWS Resources Manually
 
 You may also create the same autoscaling resources without deploying a Docker Cloud stack. Just execute the following.
