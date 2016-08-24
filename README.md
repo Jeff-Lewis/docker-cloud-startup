@@ -75,7 +75,6 @@ At [Vidsy](http://vidsy.co) and [Timehop](https://timehop.com) we wanted to use 
 - Adds Docker Cloud UUID as a tag on the AWS instance.
 - Retrieves EC2 instance tags.
 - Adds certain tags as a Docker Cloud node label.
-- Redeploys stacks.
 - Delete all installed packages and Bash history.
 
 ### Supported Linux Distros
