@@ -14,7 +14,7 @@ When an EC2 instance launches, a user data shell script fetches and executes the
 
 ### EC2 Tags and BYOH Node Labels
 
-A `Docker-Cloud-UUID` tag will always be set on every ec2 instance if launched successfully. Every BYOH node will also be labeled with the following instance details: `availabilityZone`, `instanceId`, `instanceType`, `privateIp`, and `region`.
+A `Docker-Cloud-UUID` and `Docker-Cloud-Namespace` tag will always be set on every ec2 instance if launched successfully. Every BYOH node will also be labeled with the following instance details: `availabilityZone`, `instanceId`, `instanceType`, `privateIp`, and `region`.
 
 Use the `TAGS` configuration to specify custom EC2 tags. Any tags that begin with "Docker-Cloud-" are automatically applied as labels to the Docker Cloud node.
 
