@@ -262,7 +262,7 @@ _ok
 
 _output "Add AWS tags..."
 
-aws ec2 create-tags --resources $INSTANCE_ID --tags Key="Docker-Cloud-UUID",Value=$NODE_UUID
+aws ec2 create-tags --resources $INSTANCE_ID --tags Key=Docker-Cloud-UUID,Value=$NODE_UUID Key=Docker-Cloud-Namespace,Value=$DOCKERCLOUD_NAMESPACE
 
 _ok
 
