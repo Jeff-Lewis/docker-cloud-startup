@@ -52,6 +52,7 @@ INSTANCE_TYPE=${INSTANCE_TYPE:-m3.medium}
 DESIRED_CAPACITY=${DESIRED_CAPACITY:-1}
 DEPLOYMENT_TIMEOUT=${DEPLOYMENT_TIMEOUT:-2m}
 DOCKERCLOUD_AUTH="Basic $(echo -n "$DOCKER_USER:$API_KEY" | base64)"
+DOCKERCLOUD_NAMESPACE=${DOCKERCLOUD_NAMESPACE:-${DOCKER_USER}}
 
 _output "Uploading startup script..."
 
@@ -69,7 +70,7 @@ _output "Creating Cloudformation stack..."
 # to character length restrictions of parameter fields.
 read -d '' USER_DATA << EOF || true
 #!/bin/bash
-curl -s https://s3.amazonaws.com/$script_path | bash -s "${DOCKERCLOUD_AUTH}" ${DEPLOYMENT_TIMEOUT}
+curl -s https://s3.amazonaws.com/$script_path | bash -s "${DOCKERCLOUD_AUTH}" ${DOCKERCLOUD_NAMESPACE} ${DEPLOYMENT_TIMEOUT}
 EOF
 
 aws --region ${AWS_REGION} cloudformation create-stack \

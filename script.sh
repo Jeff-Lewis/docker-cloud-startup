@@ -47,7 +47,7 @@ function _result {
 
 _output "Checking arguments..."
 
-if [ "$#" -ne 2 ]; then
+if [ "$#" -ne 3 ]; then
   _error "illegal number of parameters"
   exit 1
 else
@@ -67,7 +67,8 @@ _output "Setting final variables..."
 METADATA_SERVICE_URI="http://169.254.169.254/latest/meta-data"
 _result "METADATA_SERVICE_URI: \"$METADATA_SERVICE_URI\""
 
-DOCKER_CLOUD_CLI_VERSION="1.0.1"
+# CLI versions prior to 1.0.5 do not have namespace support
+DOCKER_CLOUD_CLI_VERSION="1.0.7"
 _result "DOCKER_CLOUD_CLI_VERSION: \"$DOCKER_CLOUD_CLI_VERSION\""
 
 AWS_CLI_VERSION="1.9.20"
@@ -149,6 +150,9 @@ _output "Setting Docker Cloud environment variables..."
 export DOCKERCLOUD_AUTH=$1
 _result "DOCKERCLOUD_AUTH: \"Basic xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\""
 
+export DOCKERCLOUD_NAMESPACE=$2
+_result "DOCKERCLOUD_NAMESPACE: \"$DOCKERCLOUD_NAMESPACE\""
+
 _ok
 
 # --
@@ -169,7 +173,7 @@ _ok
 
 _output "Setting input variables..."
 
-DEPLOYMENT_TIMEOUT=$2
+DEPLOYMENT_TIMEOUT=$3
 _result "DEPLOYMENT_TIMEOUT: \"$DEPLOYMENT_TIMEOUT\""
 
 _ok
@@ -267,7 +271,7 @@ _ok
 # --
 
 _output "Cleanup instance..."
-unset AWS_DEFAULT_REGION DOCKERCLOUD_USER DOCKERCLOUD_APIKEY NODE_UUID
+unset AWS_DEFAULT_REGION DOCKERCLOUD_NAMESPACE NODE_UUID
 pip uninstall docker-cloud awscli -y
 case "$OS_KIND" in
   debian)

@@ -5,6 +5,8 @@ docker-cloud-startup:
     # Your Docker Cloud username and api key belonging to the account where nodes will be deployed.
     - DOCKER_USER=<your_docker_username>
     - API_KEY=<your_docker_cloud_api_key>
+    # Conditional. Required only if deploying nodes to a Docker Cloud organization.
+    - DOCKERCLOUD_NAMESPACE=
     # AWS credentials must have CloudFormation create-stack privs and s3 write privs to $S3_BUCKET
     - AWS_ACCESS_KEY_ID=<*******>
     - AWS_SECRET_ACCESS_KEY=<*******>
