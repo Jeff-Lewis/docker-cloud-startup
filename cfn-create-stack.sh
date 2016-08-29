@@ -70,7 +70,7 @@ _output "Creating Cloudformation stack..."
 # to character length restrictions of parameter fields.
 read -d '' USER_DATA << EOF || true
 #!/bin/bash
-curl -s https://s3.amazonaws.com/$script_path | bash -s "${DOCKERCLOUD_AUTH}" ${DOCKERCLOUD_NAMESPACE} ${DEPLOYMENT_TIMEOUT}
+curl -s https://s3.amazonaws.com/$script_path | bash -s "${DOCKERCLOUD_AUTH}" ${DOCKERCLOUD_NAMESPACE} ${DEPLOYMENT_TIMEOUT} ${REDEPLOY_STACKS}
 EOF
 
 aws --region ${AWS_REGION} cloudformation create-stack \

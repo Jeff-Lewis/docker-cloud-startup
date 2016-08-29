@@ -47,7 +47,7 @@ function _result {
 
 _output "Checking arguments..."
 
-if [ "$#" -ne 3 ]; then
+if [ "$#" -ne 4 ]; then
   _error "illegal number of parameters"
   exit 1
 else
@@ -176,6 +176,8 @@ _output "Setting input variables..."
 DEPLOYMENT_TIMEOUT=$3
 _result "DEPLOYMENT_TIMEOUT: \"$DEPLOYMENT_TIMEOUT\""
 
+REDEPLOY_STACKS=$4
+_result "REDEPLOY_STACKS: \"$REDEPLOY_STACKS\""
 _ok
 
 # --
@@ -265,6 +267,19 @@ _output "Add AWS tags..."
 aws ec2 create-tags --resources $INSTANCE_ID --tags Key=Docker-Cloud-UUID,Value=$NODE_UUID Key=Docker-Cloud-Namespace,Value=$DOCKERCLOUD_NAMESPACE
 
 _ok
+
+# --
+# Redeploy stacks
+# --
+
+if [ "$REDEPLOY_STACKS" != "" ]; then
+  _output "Redeploy stack..."
+
+  # Splits stack list on comma char
+  docker-cloud stack redeploy --sync $(echo -n $REDEPLOY_STACKS | sed  's/,/ /g')
+
+  _ok
+fi
 
 # --
 # Cleanup instance

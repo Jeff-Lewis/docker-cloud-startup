@@ -37,3 +37,5 @@ docker-cloud-startup:
     - TAGS=
     # Defaults to 2m if left unset. Use the following syntax: 1s, 1m, 1h, etc.
     - DEPLOYMENT_TIMEOUT=2m
+    # Optional. List of stack names to redeploy after a new node is added.
+    - REDEPLOY_STACKS=
