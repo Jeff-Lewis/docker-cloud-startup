@@ -67,7 +67,7 @@
           }]
         },
         "Policies": [{
-          "PolicyName": "docker-cloud-byoh",
+          "PolicyName": {"Ref": "AWS::StackName"},
           "PolicyDocument": {
             "Version": "2012-10-17",
             "Statement": [{      
