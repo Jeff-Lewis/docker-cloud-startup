@@ -40,9 +40,30 @@
       "Type": "CommaDelimitedList",
       "Description": "Autoscaling group VPC subnets. Only specify if AvailabilityZones is empty."
     },
-    "UserData": {
+    "DeployScriptLocation": {
       "Type": "String",
-      "Description": "User data script for cloud-init (base64-encoded)"
+      "Description": "Required for UserData script."
+    },
+    "DockerCloudUser": {
+      "Type": "String",
+      "Description": "Required for UserData script."
+    },
+    "DockerCloudApiKey": {
+      "Type": "String",
+      "Description": "Required for UserData script."
+    },
+    "DockerCloudNamespace": {
+      "Type": "String",
+      "Description": "Required for UserData script."
+    },
+    "DeploymentTimeout": {
+      "Type": "String",
+      "Description": "Required for UserData script.",
+      "Default": "2m"
+    },
+    "RedeployStacks": {
+      "Type": "String",
+      "Description": "Required for UserData script."
     }
   },
   "Conditions": {
@@ -116,7 +137,14 @@
         "AssociatePublicIpAddress": {"Fn::If": ["HasNoSubnets", {"Ref": "AWS::NoValue"}, true]},
         "KeyName": {"Fn::If": ["HasNoKeyPair", {"Ref": "AWS::NoValue"}, {"Ref": "KeyPairName"}]},
         "InstanceMonitoring": false,
-        "UserData": {"Ref": "UserData"},
+        "UserData"       : { "Fn::Base64" : { "Fn::Join" : ["", [
+          "#!/bin/bash\n",
+          "curl -s ", {"Ref": "DeployScriptLocation"}, " | bash -s", 
+          " \"Basic ", { "Fn::Base64" : { "Fn::Join" : [":", [{"Ref": "DockerCloudUser"}, {"Ref": "DockerCloudApiKey"}]]}}, "\"",
+          " ", {"Ref": "DockerCloudNamespace"},
+          " ", {"Ref": "DeploymentTimeout"},
+          " ", {"Ref": "RedeployStacks"}
+        ]]}},
         "IamInstanceProfile": {"Fn::If": ["HasNoIamRole", {"Ref": "DockerCloudIamInstanceProfile"}, {"Ref": "IamInstanceProfile"}]},
         "SecurityGroups": {"Fn::If": ["HasNoSecurityGroups", [{"Ref": "DockerCloudSecurityGroup"}], {"Ref": "SecurityGroups"}]}
       }

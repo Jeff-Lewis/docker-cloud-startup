@@ -51,27 +51,21 @@ AMI_ID=${AMI_ID:-ami-2d39803a}
 INSTANCE_TYPE=${INSTANCE_TYPE:-m3.medium}
 DESIRED_CAPACITY=${DESIRED_CAPACITY:-1}
 DEPLOYMENT_TIMEOUT=${DEPLOYMENT_TIMEOUT:-2m}
-DOCKERCLOUD_AUTH="Basic $(echo -n "$DOCKER_USER:$API_KEY" | base64)"
 DOCKERCLOUD_NAMESPACE=${DOCKERCLOUD_NAMESPACE:-${DOCKER_USER}}
 
 _output "Uploading startup script..."
 
-script_path="${S3_BUCKET}/docker-cloud-startup/${CLOUDFORMATION_STACK_NAME}/script.sh"
-aws s3 cp --acl public-read script.sh "s3://$script_path"
+# We are forced to outsource the major portion of user data to an external location due 
+# to character length restrictions of parameter fields.
+user_data_path="${S3_BUCKET}/docker-cloud-startup/${CLOUDFORMATION_STACK_NAME}/script.sh"
+aws s3 cp --acl public-read script.sh "s3://$user_data_path"
 
-_result "\"https://s3.amazonaws.com/$script_path\""
+_result "\"https://s3.amazonaws.com/$user_data_path\""
 
 _ok
 
 
 _output "Creating Cloudformation stack..."
-
-# We are forced to outsource the major portion of user data to an external location due 
-# to character length restrictions of parameter fields.
-read -d '' USER_DATA << EOF || true
-#!/bin/bash
-curl -s https://s3.amazonaws.com/$script_path | bash -s "${DOCKERCLOUD_AUTH}" ${DOCKERCLOUD_NAMESPACE} ${DEPLOYMENT_TIMEOUT} ${REDEPLOY_STACKS}
-EOF
 
 aws --region ${AWS_REGION} cloudformation create-stack \
   --stack-name "${CLOUDFORMATION_STACK_NAME}" \
@@ -86,8 +80,16 @@ aws --region ${AWS_REGION} cloudformation create-stack \
                ParameterKey=Subnets,ParameterValue=\"${SUBNETS}\" \
                ParameterKey=InstanceType,ParameterValue=${INSTANCE_TYPE} \
                ParameterKey=DesiredCapacity,ParameterValue=${DESIRED_CAPACITY} \
-               ParameterKey=UserData,ParameterValue="$(echo -n "$USER_DATA" | base64)" \
-  --tags Key=Name,Value=${CLOUDFORMATION_STACK_NAME} ${TAGS}
+               ParameterKey=DeployScriptLocation,ParameterValue="https://s3.amazonaws.com/$user_data_path" \
+               ParameterKey=DockerCloudUser,ParameterValue=${DOCKER_USER} \
+               ParameterKey=DockerCloudApiKey,ParameterValue=${API_KEY} \
+               ParameterKey=DockerCloudNamespace,ParameterValue=${DOCKERCLOUD_NAMESPACE} \
+               ParameterKey=DeploymentTimeout,ParameterValue=${DEPLOYMENT_TIMEOUT} \
+               ParameterKey=RedeployStacks,ParameterValue=\"${REDEPLOY_STACKS}\" \
+  --tags Key=Name,Value="${CLOUDFORMATION_STACK_NAME}" \
+         Key='Node Cluster Name',Value="${CLOUDFORMATION_STACK_NAME}" \
+         Key='Docker ID username',Value=${DOCKERCLOUD_NAMESPACE} \
+         ${TAGS}
 
 _ok
 

@@ -47,7 +47,7 @@ function _result {
 
 _output "Checking arguments..."
 
-if [ "$#" -ne 4 ]; then
+if [ "$#" -lt 3 ]; then
   _error "illegal number of parameters"
   exit 1
 else
@@ -204,6 +204,19 @@ _result "NODE_UUID: \"$NODE_UUID\""
 _ok
 
 # --
+# Set node UUID as AWS tag
+# --
+
+INSTANCE_ID=$(curl -f ${METADATA_SERVICE_URI}/instance-id)
+_result "INSTANCE_ID: \"$INSTANCE_ID\""
+
+_output "Add AWS tags..."
+
+aws ec2 create-tags --resources $INSTANCE_ID --tags Key=UUID,Value=$NODE_UUID
+
+_ok
+
+# --
 # Wait for node to be deployed
 # --
 
@@ -220,51 +233,19 @@ _ok
 
 _output "Add docker cloud node tags..."
 
-INSTANCE_ID=$(curl -f ${METADATA_SERVICE_URI}/instance-id)
-_result "INSTANCE_ID: \"$INSTANCE_ID\""
+CLUSTER_NAME=$(aws ec2 describe-tags --filters "Name=resource-id,Values=$INSTANCE_ID" | jq -r '.Tags | map(select(.Key == "Node Cluster Name")) | .[].Value')
+LABELS="-t Cluster=$CLUSTER_NAME"
+_result "TAG: \"Cluster=$CLUSTER_NAME\""
 
 # E.g.: 'Docker-Cloud-NodeType=Worker' produces 'NodeType=Worker'
 EC2_TAGS=$(aws ec2 describe-tags --filters "Name=resource-id,Values=$INSTANCE_ID" | jq -r '.Tags | map(select(.Key | startswith("Docker-Cloud-"))) | .[].Key+"="+.[].Value | ltrimstr("Docker-Cloud-")')
 for TAG in $EC2_TAGS
 do
-  docker-cloud tag add -t $TAG $NODE_UUID
+  LABELS="$LABELS -t $TAG"
   _result "TAG: \"$TAG\""
 done
 
-# E.g.: Name=docker-cloud-startup-9ec4b02
-EC2_TAGS=$(aws ec2 describe-tags --filters "Name=resource-id,Values=$INSTANCE_ID" | jq -r '.Tags | map(select(.Key == "Name")) | .[].Key+"="+.[].Value')
-for TAG in $EC2_TAGS
-do
-  docker-cloud tag add -t $TAG $NODE_UUID
-  _result "TAG: \"$TAG\""
-done
-
-INSTANCE_IDENTITY=$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | jq -r .)
-TAG="instanceId=$(echo -n $INSTANCE_IDENTITY | jq -r .instanceId)"
-docker-cloud tag add -t $TAG $NODE_UUID
-_result "TAG: \"$TAG\""
-TAG="instanceType=$(echo -n $INSTANCE_IDENTITY | jq -r .instanceType)"
-docker-cloud tag add -t $TAG $NODE_UUID
-_result "TAG: \"$TAG\""
-TAG="region=$(echo -n $INSTANCE_IDENTITY | jq -r .region)"
-docker-cloud tag add -t $TAG $NODE_UUID
-_result "TAG: \"$TAG\""
-TAG="privateIp=$(echo -n $INSTANCE_IDENTITY | jq -r .privateIp)"
-docker-cloud tag add -t $TAG $NODE_UUID
-_result "TAG: \"$TAG\""
-TAG="availabilityZone=$(echo -n $INSTANCE_IDENTITY | jq -r .availabilityZone)"
-docker-cloud tag add -t $TAG $NODE_UUID
-_result "TAG: \"$TAG\""
-
-_ok
-
-# --
-# Set node UUID as AWS tag
-# --
-
-_output "Add AWS tags..."
-
-aws ec2 create-tags --resources $INSTANCE_ID --tags Key=Docker-Cloud-UUID,Value=$NODE_UUID Key=Docker-Cloud-Namespace,Value=$DOCKERCLOUD_NAMESPACE
+docker-cloud tag add $LABELS $NODE_UUID
 
 _ok
 
