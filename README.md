@@ -14,9 +14,13 @@ When an EC2 instance launches, a user data shell script fetches and executes the
 
 ### EC2 Tags and BYOH Node Labels
 
-A `Docker-Cloud-UUID` and `Docker-Cloud-Namespace` tag will always be set on every ec2 instance if launched successfully. Every BYOH node will also be labeled with the following instance details: `availabilityZone`, `instanceId`, `instanceType`, `privateIp`, and `region`.
+The `UUID`, `Docker ID username`, and `Node Cluster Name` tags will always be set on every ec2 instance if launched successfully (these are standard Docker Cloud tags). Every BYOH node will also be labeled with `Cluster=<cfn-stack-name>`.
 
 Use the `TAGS` configuration to specify custom EC2 tags. Any tags that begin with "Docker-Cloud-" are automatically applied as labels to the Docker Cloud node.
+
+### Stack Redeployment
+
+After a node has launched, the final step in the script is to redeploy any stacks specified in the config file. It's possible a redeployment may fail if one is currently in progress. There is currently no workaround for this.
 
 ### AWS Credentials
 
@@ -83,6 +87,7 @@ docker run --rm -it \
   -e AWS_SECRET_ACCESS_KEY=******************** \
   -e S3_BUCKET=<s3_bucket> \
   -e AWS_REGION=us-east-1 \
+  -e REDEPLOY_STACKS=foo,bar \
   -e AVAILABILITY_ZONES=us-east-1d,us-east-1b,us-east-1c \
   timehop/docker-cloud-startup:latest
 ```
@@ -101,6 +106,7 @@ docker run --rm -it \
   -e VPC_ID=<vpc_id> \
   -e SUBNETS=<csv_subnets> \
   -e INSTANCE_TYPE=t2.micro \
+  -e REDEPLOY_STACKS=foo,bar \
   -e TAGS='Key=Docker-Cloud-IsVPC,Value=true' \
   timehop/docker-cloud-startup:latest
 ```
@@ -118,14 +124,15 @@ At [Vidsy](http://vidsy.co) and [Timehop](https://timehop.com) we wanted to use 
 
 ### script.sh
 
-- Executed on EC2 during launch.
+- Executed on EC2 during launch as part of cloud-init (ie: UserData).
 - Installs `docker-cloud-cli` and `aws-cli`.
 - Sets environment variables for Docker Cloud authentication.
-- Uses "Bring Your Own Node" CLI command to register new instance as Docker Cloud node.
+- Executes the `byo` CLI command to register new instance as Docker Cloud node.
+- Tags EC2 instance with UUID.
 - Waits for Docker Cloud node deployment to finish.
-- Adds Docker Cloud UUID as a tag on the AWS instance.
-- Retrieves EC2 instance tags.
-- Adds certain tags as a Docker Cloud node label.
+- Tags Docker Cloud node with `Cluster=<cfn-stackname>`.
+- Tags Docker Cloud node with EC2 tags prefixed with `Docker-Cloud-`.
+- Redeploys stacks.
 - Delete all installed packages and Bash history.
 
 ### Supported Linux Distros
